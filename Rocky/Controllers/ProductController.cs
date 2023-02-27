@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 using Rocky.Data;
 using Rocky.Models;
 using Rocky.Models.ViewModels;
@@ -26,12 +27,13 @@ namespace Rocky.Controllers
 
         public IActionResult Index()
         {
-            IEnumerable<Product> objList = _db.Product;
+            IEnumerable<Product> objList = _db.Product.Include(u => u.Category).Include(u => u.ApplicationType);
 
-            foreach (var obj in objList)
-            {
-                obj.Category = _db.Category.FirstOrDefault(u => u.Id == obj.CategoryId);
-            }
+            //foreach (var obj in objList)
+            //{
+            //    obj.Category = _db.Category.FirstOrDefault(u => u.Id == obj.CategoryId);
+            //    obj.ApplicationType = _db.ApplicationType.FirstOrDefault(u => u.Id == obj.ApplicationTypeId);
+            //}
 
             return View(objList);
         }
@@ -54,6 +56,11 @@ namespace Rocky.Controllers
             {
                 Product = new Product(),
                 CategorySelectedList = _db.Category.Select(i => new SelectListItem
+                {
+                    Text = i.Name,
+                    Value = i.Id.ToString()
+                }),
+                ApplicationTypeSelectedList = _db.ApplicationType.Select(i => new SelectListItem
                 {
                     Text = i.Name,
                     Value = i.Id.ToString()
@@ -105,12 +112,54 @@ namespace Rocky.Controllers
                 else
                 {
                     // Updating
+                    var objFromDb = _db.Product.AsNoTracking().FirstOrDefault(u => u.Id == productVM.Product.Id);
+                    if(files.Count > 0)
+                    {
+                        // Путь к файлу
+                        string upload = webRootPath + WC.ImagePath;
+
+                        // Имя файла
+                        string fileName = Guid.NewGuid().ToString();
+
+                        // Расширение файла
+                        string extension = Path.GetExtension(files[0].FileName);
+
+                        // Старый файл
+                        var oldFile = Path.Combine(upload, objFromDb.Image);
+
+                        if(System.IO.File.Exists(oldFile))
+                        {
+                            System.IO.File.Delete(oldFile);
+                        }
+
+                        using (var fileStream = new FileStream(Path.Combine(upload, fileName + extension), FileMode.Create))
+                        {
+                            files[0].CopyTo(fileStream);
+                        }
+
+                        productVM.Product.Image = fileName + extension;
+                    }
+                    else
+                    {
+                        productVM.Product.Image = objFromDb.Image;
+                    }
+                    _db.Product.Update(productVM.Product);
                 }
 
                 _db.SaveChanges();
                 return RedirectToAction("Index");
             }
-            return View();
+            productVM.CategorySelectedList = _db.Category.Select(i => new SelectListItem
+            {
+                Text = i.Name,
+                Value = i.Id.ToString()
+            });
+            productVM.ApplicationTypeSelectedList = _db.ApplicationType.Select(i => new SelectListItem
+            {
+                Text = i.Name,
+                Value = i.Id.ToString()
+            });
+            return View(productVM);
         }
 
         //GET - DELETE
@@ -120,28 +169,39 @@ namespace Rocky.Controllers
             {
                 return NotFound();
             }
-            var obj = _db.Category.Find(id);
-            if (obj == null)
+            Product product = _db.Product.Include(u => u.Category).Include(u => u.ApplicationType).FirstOrDefault(u => u.Id == id);
+           // product.Category = _db.Category.Find(product.CategoryId);
+
+            if (product == null)
             {
                 return NotFound();
-            }
-
-            return View(obj);
+            }            
+            return View(product);
         }
 
         //POST - DELETE
-        [HttpPost]
+        [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public IActionResult DeletePost(int? id)
         {
-            var obj = _db.Category.Find(id);
+            var obj = _db.Product.Find(id);
 
             if (obj == null)
             {
                 return NotFound();
             }
 
-            _db.Category.Remove(obj);
+            string upload = _webHostEnvironment.WebRootPath + WC.ImagePath;
+
+            // Старый файл
+            var oldFile = Path.Combine(upload, obj.Image);
+
+            if (System.IO.File.Exists(oldFile))
+            {
+                System.IO.File.Delete(oldFile);
+            }
+
+            _db.Product.Remove(obj);
             _db.SaveChanges();
             return RedirectToAction("Index");
         }

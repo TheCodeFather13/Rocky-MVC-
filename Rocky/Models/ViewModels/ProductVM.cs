@@ -10,5 +10,6 @@ namespace Rocky.Models.ViewModels
     {
         public Product Product { get; set; }
         public IEnumerable<SelectListItem> CategorySelectedList { get; set; }
+        public IEnumerable<SelectListItem> ApplicationTypeSelectedList { get; set; }
     }
 }

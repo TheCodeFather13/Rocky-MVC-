@@ -2,6 +2,6 @@
 {
     public class ShoppingCart
     {
-        public int MyProperty { get; set; }
+        public int ProductId { get; set; }
     }
 }
